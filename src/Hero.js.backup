@@ -586,9 +586,6 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
     const targetColorsRef = useRef(null);
     const currentColorsRef = useRef(null);
     const dappModeRef = useRef(false);
-    const flashesRef = useRef([]);
-    const networkMapRef = useRef(null);
-    const lastFlashTimeRef = useRef(2);
 
     const [sphereGeometry, setSphereGeometry] = useState(null);
     const [sphereMaterial, setSphereMaterial] = useState(null);
@@ -641,7 +638,6 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         const positionsArray = new Float32Array(INSTANCES_COUNT * 3);
         const quaternionsArray = new Float32Array(INSTANCES_COUNT * 4);
         const colorsArray = new Float32Array(INSTANCES_COUNT * 3);
-        const networkMap = new Uint16Array(INSTANCES_COUNT);
 
         const sphereRadius = 2.0;
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -670,29 +666,48 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             quaternionsArray[i4 + 2] = tempQuat.z;
             quaternionsArray[i4 + 3] = tempQuat.w;
 
-            // Track closest network for flash effects
+            // Continent coloring based on market share
             const instanceVec = new THREE.Vector3(x, posY, z).normalize();
-            let closestNetworkIdx = 0;
+            let closestNetwork = networksForGeometry[0];
             let maxDot = -1;
-            for (let n = 0; n < networksForGeometry.length; n++) {
-                const dot = instanceVec.dot(networksForGeometry[n].pos);
+            for (const net of networksForGeometry) {
+                const dot = instanceVec.dot(net.pos);
                 if (dot > maxDot) {
                     maxDot = dot;
-                    closestNetworkIdx = n;
+                    closestNetwork = net;
                 }
             }
-            networkMap[i] = closestNetworkIdx;
 
-            // Dark metallic base with very subtle variation per region
-            const base = 0.08 + Math.random() * 0.03;
-            const finalColor = new THREE.Color(base, base, base + 0.005);
+            // Use market share to adjust the threshold and intensity
+            // Higher market share = larger colored area and more intense color
+            const marketShare = closestNetwork.marketShare || 0;
+            // LOWER threshold so more of the orb shows colors (was 0.85, now 0.60 for better visibility)
+            const baseThreshold = 0.60;
+            const marketShareBoost = (marketShare / 100) * 0.25; // Up to 25% boost for high market share
+            const adjustedThreshold = baseThreshold - marketShareBoost;
+            const intensityMultiplier = 1.0 + (marketShare / 100) * 2.5; // Up to 3.5x intensity
+
+            const finalColor = new THREE.Color("#555");
+            if (maxDot > adjustedThreshold && closestNetwork.color) {
+                // Calculate lerp factor - make it more gradual for better color spread
+                const range = 1.0 - adjustedThreshold;
+                const normalizedDot = (maxDot - adjustedThreshold) / range;
+                const lerpFactor = Math.min(1.0, normalizedDot * intensityMultiplier);
+                finalColor.lerp(closestNetwork.color, lerpFactor);
+            } else {
+                // Even areas not close to networks get a subtle tint of the closest network
+                if (closestNetwork.color && maxDot > 0.3) {
+                    const subtleLerp = (maxDot - 0.3) * 0.5; // Subtle color even for far areas
+                    finalColor.lerp(closestNetwork.color, subtleLerp);
+                } else {
+                    finalColor.copy(new THREE.Color("#444"));
+                }
+            }
 
             colorsArray[i3] = finalColor.r;
             colorsArray[i3 + 1] = finalColor.g;
             colorsArray[i3 + 2] = finalColor.b;
         }
-        networkMapRef.current = networkMap;
-
         geometry.setAttribute(
             "a_instancePos",
             new THREE.InstancedBufferAttribute(positionsArray, 3),
@@ -725,8 +740,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             const target = targetColorsRef.current;
             const networkPos = selectedNetwork.pos;
             const sphereRadius = 2.0;
-            const muted = new THREE.Color('#0a0a0a');
-            const dark = new THREE.Color('#111');
+            const muted = new THREE.Color('#1a1a1a');
+            const dark = new THREE.Color('#222');
             const tempVec = new THREE.Vector3();
 
             for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
@@ -749,12 +764,12 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                         }
                     }
 
-                    // Color intensity - more muted for metallic look
+                    // Color intensity based on proximity and TVL share
                     const proximity = Math.max(0, (dotNetwork - 0.45) / 0.55);
-                    const tvlBoost = 0.3 + closestDapp.tvlShare * 1.5;
-                    const intensity = Math.min(0.6, proximity * tvlBoost);
+                    const tvlBoost = 0.5 + closestDapp.tvlShare * 2.0;
+                    const intensity = Math.min(1.0, proximity * tvlBoost);
 
-                    const c = dark.clone().lerp(closestDapp.color, intensity * 0.4);
+                    const c = dark.clone().lerp(closestDapp.color, intensity);
                     target[i3] = c.r;
                     target[i3 + 1] = c.g;
                     target[i3 + 2] = c.b;
@@ -947,12 +962,12 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         const time = state.clock.getElapsedTime();
 
         const configs = [
-            { speed: 0.35, phase: Math.PI / 1.1, plane: 'yz', dir: 1 },
-            { speed: 0.25, phase: Math.PI / 3.4, plane: 'xz', dir: -1 },
-            { speed: 0.18, phase: Math.PI / 2.2, plane: 'yz', dir: 1 },
-            { speed: 0.4, phase: Math.PI / 1.7, plane: 'xy', dir: -1 },
+            { speed: 1.0, phase: Math.PI / 1.1, plane: 'yz', dir: 1 },
+            { speed: 0.75, phase: Math.PI / 3.4, plane: 'xz', dir: -1 },
+            { speed: 0.5, phase: Math.PI / 2.2, plane: 'yz', dir: 1 },
+            { speed: 1.2, phase: Math.PI / 1.7, plane: 'xy', dir: -1 },
         ];
-        const radius = 2.4;
+        const radius = 2.2;
 
         const updateSphere = (ref, uniform, config) => {
             if (ref.current) {
@@ -972,7 +987,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         updateSphere(sphere3Ref, uniforms.u_sphere3Position, configs[2]);
         updateSphere(sphere4Ref, uniforms.u_sphere4Position, configs[3]);
 
-        // Dynamic color lerping for dApp mode transitions + network flash effects
+        // Dynamic color lerping for dApp mode transitions
         if (colorAttrRef.current && currentColorsRef.current && targetColorsRef.current) {
             const current = currentColorsRef.current;
             const target = targetColorsRef.current;
@@ -986,71 +1001,23 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                 }
             }
 
-            // Flash scheduling (only when not in dApp mode)
-            if (!dappModeRef.current && networkMapRef.current && networks.length > 0) {
-                if (time > lastFlashTimeRef.current) {
-                    const netIdx = Math.floor(Math.random() * networks.length);
-                    flashesRef.current.push({
-                        networkIdx: netIdx,
-                        startTime: time,
-                        duration: 1.8,
-                        color: networks[netIdx].color,
-                    });
-                    lastFlashTimeRef.current = time + 3 + Math.random() * 3;
-                }
-                flashesRef.current = flashesRef.current.filter(f => time - f.startTime < f.duration);
-            } else {
-                flashesRef.current = [];
-            }
-
-            // Apply flash overlays to attribute buffer
-            const hasFlashes = flashesRef.current.length > 0;
-            if (hasFlashes || needsUpdate) {
-                const attr = colorAttrRef.current.array;
-
-                if (hasFlashes) {
-                    attr.set(current);
-                    const nMap = networkMapRef.current;
-
-                    for (const flash of flashesRef.current) {
-                        const elapsed = time - flash.startTime;
-                        const progress = elapsed / flash.duration;
-                        let intensity;
-                        if (progress < 0.15) intensity = progress / 0.15;
-                        else if (progress < 0.4) intensity = 1.0;
-                        else intensity = 1.0 - (progress - 0.4) / 0.6;
-                        intensity = Math.max(0, intensity) * 0.35;
-
-                        const cr = flash.color.r * intensity;
-                        const cg = flash.color.g * intensity;
-                        const cb = flash.color.b * intensity;
-
-                        for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
-                            if (nMap[i] === flash.networkIdx) {
-                                attr[i3] = Math.min(1.0, attr[i3] + cr);
-                                attr[i3 + 1] = Math.min(1.0, attr[i3 + 1] + cg);
-                                attr[i3 + 2] = Math.min(1.0, attr[i3 + 2] + cb);
-                            }
-                        }
-                    }
-                } else {
-                    attr.set(current);
-                }
-
+            if (needsUpdate) {
+                colorAttrRef.current.array.set(current);
                 colorAttrRef.current.needsUpdate = true;
             }
         }
 
         // Update hot continent effect
         if (selectedDapp && selectedDapp.pos) {
+            // dApp selected - highlight dApp position with faster pulse
             uniforms.u_hotContinentPos.value.copy(selectedDapp.pos);
             uniforms.u_hotColor.value.copy(selectedDapp.color);
-            uniforms.u_hotBeamIntensity.value = 0.4 + 0.3 * Math.sin(time * 1.5);
+            uniforms.u_hotBeamIntensity.value = 0.6 + 0.4 * Math.sin(time * 3.0);
         } else {
-            const activeNet = selectedNetwork || networks[Math.floor((time / 6) % networks.length)];
+            const activeNet = selectedNetwork || networks[Math.floor((time / 4) % networks.length)];
             uniforms.u_hotContinentPos.value.copy(activeNet.pos);
             uniforms.u_hotColor.value.copy(activeNet.color);
-            uniforms.u_hotBeamIntensity.value = 0.3 + 0.3 * Math.sin(time * 0.8);
+            uniforms.u_hotBeamIntensity.value = 0.5 + 0.5 * Math.sin(time * 2.0);
         }
 
         uniforms.u_noiseCoordOffset.value.set(Math.random(), Math.random());

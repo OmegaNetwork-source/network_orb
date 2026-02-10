@@ -39,8 +39,8 @@ function usePostprocessing() {
     );
 
     const VIGNETTE = new VignetteEffect({
-      darkness: 0.6,
-      offset: 0.3
+      darkness: 0.3,
+      offset: 0.5
     });
 
     composer.addPass(renderPass);

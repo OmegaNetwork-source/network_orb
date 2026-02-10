@@ -65,7 +65,7 @@ export const heroVertexShader = `
         float distanceToSphere3 = length(a_instancePos - u_sphere3Position);
         float distanceToSphere4 = length(a_instancePos - u_sphere4Position);
         
-        float attenuationStrength = 2.0;
+        float attenuationStrength = 4.0;
 
         float displacement = 1.0 - clamp(1.0 / (attenuationStrength * distanceToSphere1 * distanceToSphere1), 0.0, 1.0);
         displacement = min(displacement, 1.0 - clamp(1.0 / (attenuationStrength * distanceToSphere2 * distanceToSphere2), 0.0, 1.0));
@@ -81,7 +81,7 @@ export const heroVertexShader = `
         pos = rotateByQuaternion(pos, a_instanceQuaternions);
         pos *= u_scale;
         pos += a_instancePos;
-        pos += normalize(a_instancePos) * 0.6 * pow(displacement, 0.5);
+        pos += normalize(a_instancePos) * 0.4 * pow(displacement, 0.7);
         
         norm = rotateByQuaternion(norm, a_instanceQuaternions);
 
@@ -218,9 +218,7 @@ export const heroFragmentShader = `
 	    vec3 viewNormal = normalize(v_viewNormal);
         vec3 L = normalize(u_lightPosition - v_instancePos);
 	    vec3 N = normalize(normalize(v_instancePos) + 0.2 * normalize(v_worldNormal));
-        vec3 V = normalize(v_viewPosition);
         float NdL = max(0., dot(N, L));
-        float NdV = max(0., dot(viewNormal, V));
 
         float distFromLight = length(u_lightPosition - v_worldPosition);
         float attenuation = 1.0 / (0.00025 * pow(distFromLight, 8.0));
@@ -229,31 +227,15 @@ export const heroFragmentShader = `
 
         float shadow = getShadowMask();
         shadow = 0.4 + 0.6 * shadow;
-
-        // Metallic dark base
-        vec3 baseColor = vec3(0.06, 0.06, 0.07);
-
-        // Subtle color from v_color blended at low opacity (for dApp mode)
-        float colorLuma = dot(v_color, vec3(0.299, 0.587, 0.114));
-        vec3 tint = mix(baseColor, v_color * 0.3, smoothstep(0.15, 0.4, colorLuma));
-
-        vec3 color = tint;
+        
+        vec3 color = v_color;
         color *= clamp(attenuation + smoothstep(-0.05, 1.0, NdL), 0.0, 1.0);
         color = pow(color, vec3(0.8));
         color *= ao * ao;
         color *= shadow;
 
-        // Wet metallic specular highlight
-        vec3 H = normalize(V + L);
-        float spec = pow(max(0.0, dot(H, viewNormal)), 120.0);
-        color += vec3(0.35, 0.37, 0.4) * spec * shadow;
-
-        // Fresnel rim - venom wet edge glow
-        float fresnel = pow(1.0 - NdV, 4.0);
-        color += vec3(0.08, 0.08, 0.12) * fresnel;
-
-        // Subtle hot beam (much more restrained)
-        color += u_hotColor * v_hotFactor * 0.15 * (1.0 + 0.3 * sin(u_noiseCoordOffset.x * 10.0));
+        // Add "What's Hot" beaming effect
+        color += u_hotColor * v_hotFactor * (1.0 + 0.5 * sin(u_noiseCoordOffset.x * 10.0));
 
         gl_FragColor = vec4(color, 1.0);
         gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0 / 2.2));
