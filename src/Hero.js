@@ -22,24 +22,29 @@ function formatNumber(num, decimals = 1) {
     return `$${num.toFixed(decimals)}`;
 }
 
-// Mobile detection utility
+// Mobile detection utility - more reliable
 const isMobileDevice = () => {
     if (typeof window === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) ||
-           ('ontouchstart' in window);
+    // Check user agent first
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    // Check screen size
+    const isSmallScreen = window.innerWidth <= 768;
+    // Only use touch detection as a fallback (many laptops have touchscreens)
+    return isMobileUA || (isSmallScreen && 'ontouchstart' in window);
 };
 
 // Adaptive instance count based on device
 const getInstancesCount = () => {
+    if (typeof window === 'undefined') return 5000; // Default for SSR
     if (isMobileDevice()) {
-        // Reduce instances on mobile for better performance
-        return 2000;
+        // Reduce instances on mobile for better performance, but not too low
+        return 3000;
     }
     return 5000;
 };
 
-const INSTANCES_COUNT = getInstancesCount();
+// Use a reasonable default, will be recalculated in component
+const INSTANCES_COUNT = 5000;
 
 // Base network configuration (will be enriched with real data)
 // Logo sources - using multiple reliable CDNs
@@ -660,6 +665,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
 
         // Use dynamic instance count based on device
         const instanceCount = getInstancesCount();
+        console.log('Geometry instance count:', instanceCount, 'isMobile:', isMobileDevice());
         const positionsArray = new Float32Array(instanceCount * 3);
         const quaternionsArray = new Float32Array(instanceCount * 4);
         const colorsArray = new Float32Array(instanceCount * 3);
@@ -722,14 +728,17 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
 
         geometry.setAttribute(
             "a_instancePos",
-            new THREE.InstancedBufferAttribute(positionsArray, 3),
+            new THREE.InstancedBufferAttribute(positionsArray, 3, false),
         );
         geometry.setAttribute(
             "a_instanceQuaternions",
-            new THREE.InstancedBufferAttribute(quaternionsArray, 4),
+            new THREE.InstancedBufferAttribute(quaternionsArray, 4, false),
         );
-        const colorAttr = new THREE.InstancedBufferAttribute(colorsArray, 3);
+        const colorAttr = new THREE.InstancedBufferAttribute(colorsArray, 3, false);
         geometry.setAttribute("a_instanceColor", colorAttr);
+        
+        // Ensure instance count is set correctly
+        geometry.instanceCount = instanceCount;
 
         // Store refs for dynamic color animation
         colorAttrRef.current = colorAttr;

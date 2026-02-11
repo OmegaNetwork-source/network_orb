@@ -1627,10 +1627,10 @@ export default function App() {
   const [hoveredItem, setHoveredItem] = useState(null);
   const pendingDappRef = useRef(null);
 
-  // Mobile detection for adaptive rendering
+  // Mobile detection for adaptive rendering - more reliable
   const isMobile = typeof window !== 'undefined' && (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    window.matchMedia('(max-width: 768px)').matches
+    (window.innerWidth <= 768 && 'ontouchstart' in window)
   );
 
   // Pre-fetch data when networks are loaded
