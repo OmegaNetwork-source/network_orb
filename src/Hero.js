@@ -22,28 +22,6 @@ function formatNumber(num, decimals = 1) {
     return `$${num.toFixed(decimals)}`;
 }
 
-// Mobile detection utility - more reliable
-const isMobileDevice = () => {
-    if (typeof window === 'undefined') return false;
-    // Check user agent first
-    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    // Check screen size
-    const isSmallScreen = window.innerWidth <= 768;
-    // Only use touch detection as a fallback (many laptops have touchscreens)
-    return isMobileUA || (isSmallScreen && 'ontouchstart' in window);
-};
-
-// Adaptive instance count based on device
-const getInstancesCount = () => {
-    if (typeof window === 'undefined') return 5000; // Default for SSR
-    if (isMobileDevice()) {
-        // Reduce instances on mobile for better performance, but not too low
-        return 3000;
-    }
-    return 5000;
-};
-
-// Use a reasonable default, will be recalculated in component
 const INSTANCES_COUNT = 5000;
 
 // Base network configuration (will be enriched with real data)
@@ -663,13 +641,10 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         }
         geometry.setIndex(refGeometry.index);
 
-        // Use dynamic instance count based on device
-        const instanceCount = getInstancesCount();
-        console.log('Geometry instance count:', instanceCount, 'isMobile:', isMobileDevice());
-        const positionsArray = new Float32Array(instanceCount * 3);
-        const quaternionsArray = new Float32Array(instanceCount * 4);
-        const colorsArray = new Float32Array(instanceCount * 3);
-        const networkMap = new Uint16Array(instanceCount);
+        const positionsArray = new Float32Array(INSTANCES_COUNT * 3);
+        const quaternionsArray = new Float32Array(INSTANCES_COUNT * 4);
+        const colorsArray = new Float32Array(INSTANCES_COUNT * 3);
+        const networkMap = new Uint16Array(INSTANCES_COUNT);
 
         const sphereRadius = 2.0;
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -677,9 +652,9 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         const tempPos = new THREE.Vector3();
         const tempQuat = new THREE.Quaternion();
 
-        for (let i = 0, i3 = 0, i4 = 0; i < instanceCount; i++, i3 += 3, i4 += 4) {
+        for (let i = 0, i3 = 0, i4 = 0; i < INSTANCES_COUNT; i++, i3 += 3, i4 += 4) {
             // Fibonacci distribution on unit sphere
-            const ny = 1 - (i / (instanceCount - 1)) * 2;
+            const ny = 1 - (i / (INSTANCES_COUNT - 1)) * 2;
             const r = Math.sqrt(1 - ny * ny);
             const theta = goldenAngle * i;
             const nx = Math.cos(theta) * r;
@@ -734,11 +709,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             "a_instanceQuaternions",
             new THREE.InstancedBufferAttribute(quaternionsArray, 4, false),
         );
-        const colorAttr = new THREE.InstancedBufferAttribute(colorsArray, 3, false);
+        const colorAttr = new THREE.InstancedBufferAttribute(colorsArray, 3);
         geometry.setAttribute("a_instanceColor", colorAttr);
-        
-        // Ensure instance count is set correctly
-        geometry.instanceCount = instanceCount;
 
         // Store refs for dynamic color animation
         colorAttrRef.current = colorAttr;
@@ -764,9 +736,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             const muted = new THREE.Color('#0a0a0a');
             const dark = new THREE.Color('#111');
             const tempVec = new THREE.Vector3();
-            const instanceCount = getInstancesCount();
-
-            for (let i = 0, i3 = 0; i < instanceCount; i++, i3 += 3) {
+            for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
                 const x = positions[i3];
                 const y = positions[i3 + 1];
                 const z = positions[i3 + 2];
@@ -1051,8 +1021,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                         const cb = flash.color.b * intensity;
 
                         // Flash the entire orb with the network's color
-                        const instanceCount = getInstancesCount();
-                        for (let i = 0, i3 = 0; i < instanceCount; i++, i3 += 3) {
+                        for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
                             attr[i3] = Math.min(1.0, attr[i3] + cr);
                             attr[i3 + 1] = Math.min(1.0, attr[i3 + 1] + cg);
                             attr[i3 + 2] = Math.min(1.0, attr[i3 + 2] + cb);
@@ -1085,7 +1054,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
     return (
         <>
             <directionalLight
-                castShadow={!isMobileDevice()}
+                castShadow
                 position={[lightPosition.x, lightPosition.y, lightPosition.z]}
                 shadow-camera-left={-3}
                 shadow-camera-right={3}
@@ -1094,7 +1063,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                 shadow-camera-near={0.1}
                 shadow-camera-far={20}
                 shadow-bias={-0.0001}
-                shadow-mapSize={isMobileDevice() ? [512, 512] : [1024, 1024]}
+                shadow-mapSize={[1024, 1024]}
             />
             {/* Base sphere removed - was causing visible circle artifact */}
             {/* Transparent click detection sphere - must be before other meshes for proper raycasting */}
@@ -1125,8 +1094,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             <mesh
                 geometry={geometry}
                 renderOrder={0}
-                receiveShadow={!isMobileDevice()}
-                castShadow={!isMobileDevice()}
+                receiveShadow
+                castShadow
                 onAfterRender={(gl) => {
                     const currentRT = gl.getRenderTarget();
                     if (!currentRT) return;
@@ -1140,7 +1109,6 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                     fragmentShader={heroFragmentShader}
                     uniforms={uniforms}
                     lights={true}
-                    defines={isMobileDevice() ? { MOBILE: true } : {}}
                 />
                 <shaderMaterial
                     attach="customDepthMaterial"
