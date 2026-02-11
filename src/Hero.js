@@ -1085,7 +1085,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
     return (
         <>
             <directionalLight
-                castShadow
+                castShadow={!isMobileDevice()}
                 position={[lightPosition.x, lightPosition.y, lightPosition.z]}
                 shadow-camera-left={-3}
                 shadow-camera-right={3}
@@ -1094,7 +1094,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                 shadow-camera-near={0.1}
                 shadow-camera-far={20}
                 shadow-bias={-0.0001}
-                shadow-mapSize={[1024, 1024]}
+                shadow-mapSize={isMobileDevice() ? [512, 512] : [1024, 1024]}
             />
             {/* Base sphere removed - was causing visible circle artifact */}
             {/* Transparent click detection sphere - must be before other meshes for proper raycasting */}
@@ -1125,8 +1125,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             <mesh
                 geometry={geometry}
                 renderOrder={0}
-                receiveShadow
-                castShadow
+                receiveShadow={!isMobileDevice()}
+                castShadow={!isMobileDevice()}
                 onAfterRender={(gl) => {
                     const currentRT = gl.getRenderTarget();
                     if (!currentRT) return;
@@ -1140,6 +1140,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                     fragmentShader={heroFragmentShader}
                     uniforms={uniforms}
                     lights={true}
+                    defines={isMobileDevice() ? { MOBILE: true } : {}}
                 />
                 <shaderMaterial
                     attach="customDepthMaterial"

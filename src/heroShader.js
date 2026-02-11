@@ -235,10 +235,19 @@ export const heroFragmentShader = `
         float ao = linearStep(-0.5, -3.0, v_modelPosition.y);
 
         float shadow = getShadowMask();
-        shadow = 0.4 + 0.6 * shadow;
+        #ifdef MOBILE
+            // On mobile, use simpler shadow calculation for better performance and visibility
+            shadow = 0.7 + 0.3 * shadow;
+        #else
+            shadow = 0.4 + 0.6 * shadow;
+        #endif
 
-        // Metallic dark base
-        vec3 baseColor = vec3(0.06, 0.06, 0.07);
+        // Metallic dark base - brighter on mobile for visibility
+        #ifdef MOBILE
+            vec3 baseColor = vec3(0.12, 0.12, 0.14); // Brighter on mobile
+        #else
+            vec3 baseColor = vec3(0.06, 0.06, 0.07);
+        #endif
 
         // Subtle color from v_color blended at low opacity (for dApp mode)
         float colorLuma = dot(v_color, vec3(0.299, 0.587, 0.114));

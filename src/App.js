@@ -1785,7 +1785,7 @@ export default function App() {
           stencil: false,
           alpha: false,
         }}
-        shadows={!isMobile}
+        shadows={true}
         style={{ position: 'absolute', inset: 0 }}
       >
         <Scene
