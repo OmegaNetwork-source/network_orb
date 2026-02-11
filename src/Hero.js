@@ -22,7 +22,24 @@ function formatNumber(num, decimals = 1) {
     return `$${num.toFixed(decimals)}`;
 }
 
-const INSTANCES_COUNT = 5000;
+// Mobile detection utility
+const isMobileDevice = () => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) ||
+           ('ontouchstart' in window);
+};
+
+// Adaptive instance count based on device
+const getInstancesCount = () => {
+    if (isMobileDevice()) {
+        // Reduce instances on mobile for better performance
+        return 2000;
+    }
+    return 5000;
+};
+
+const INSTANCES_COUNT = getInstancesCount();
 
 // Base network configuration (will be enriched with real data)
 // Logo sources - using multiple reliable CDNs
@@ -641,10 +658,12 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         }
         geometry.setIndex(refGeometry.index);
 
-        const positionsArray = new Float32Array(INSTANCES_COUNT * 3);
-        const quaternionsArray = new Float32Array(INSTANCES_COUNT * 4);
-        const colorsArray = new Float32Array(INSTANCES_COUNT * 3);
-        const networkMap = new Uint16Array(INSTANCES_COUNT);
+        // Use dynamic instance count based on device
+        const instanceCount = getInstancesCount();
+        const positionsArray = new Float32Array(instanceCount * 3);
+        const quaternionsArray = new Float32Array(instanceCount * 4);
+        const colorsArray = new Float32Array(instanceCount * 3);
+        const networkMap = new Uint16Array(instanceCount);
 
         const sphereRadius = 2.0;
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -652,9 +671,9 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         const tempPos = new THREE.Vector3();
         const tempQuat = new THREE.Quaternion();
 
-        for (let i = 0, i3 = 0, i4 = 0; i < INSTANCES_COUNT; i++, i3 += 3, i4 += 4) {
+        for (let i = 0, i3 = 0, i4 = 0; i < instanceCount; i++, i3 += 3, i4 += 4) {
             // Fibonacci distribution on unit sphere
-            const ny = 1 - (i / (INSTANCES_COUNT - 1)) * 2;
+            const ny = 1 - (i / (instanceCount - 1)) * 2;
             const r = Math.sqrt(1 - ny * ny);
             const theta = goldenAngle * i;
             const nx = Math.cos(theta) * r;
@@ -736,8 +755,9 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             const muted = new THREE.Color('#0a0a0a');
             const dark = new THREE.Color('#111');
             const tempVec = new THREE.Vector3();
+            const instanceCount = getInstancesCount();
 
-            for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
+            for (let i = 0, i3 = 0; i < instanceCount; i++, i3 += 3) {
                 const x = positions[i3];
                 const y = positions[i3 + 1];
                 const z = positions[i3 + 2];
@@ -1022,7 +1042,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                         const cb = flash.color.b * intensity;
 
                         // Flash the entire orb with the network's color
-                        for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
+                        const instanceCount = getInstancesCount();
+                        for (let i = 0, i3 = 0; i < instanceCount; i++, i3 += 3) {
                             attr[i3] = Math.min(1.0, attr[i3] + cr);
                             attr[i3 + 1] = Math.min(1.0, attr[i3 + 1] + cg);
                             attr[i3 + 2] = Math.min(1.0, attr[i3 + 2] + cb);

@@ -1261,3 +1261,82 @@ body,
   50% { background-position: 100% 100%; }
   100% { background-position: 0% 0%; }
 }
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .glass-card {
+    width: calc(100% - 24px);
+    max-width: 380px;
+    right: 12px;
+    left: 12px;
+    margin: 0 auto;
+    padding: 24px;
+    max-height: 90vh;
+    border-radius: 20px;
+  }
+
+  .card-header {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .network-icon,
+  .network-icon-img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .card-title {
+    font-size: 20px;
+  }
+
+  .search-bar {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .search-section-header {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .suggestion-item {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .suggestion-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .hover-tooltip {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .tooltip-name {
+    font-size: 13px;
+  }
+
+  .tooltip-type {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .glass-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .network-icon,
+  .network-icon-img {
+    width: 32px;
+    height: 32px;
+  }
+}

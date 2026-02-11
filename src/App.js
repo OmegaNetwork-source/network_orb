@@ -1627,6 +1627,12 @@ export default function App() {
   const [hoveredItem, setHoveredItem] = useState(null);
   const pendingDappRef = useRef(null);
 
+  // Mobile detection for adaptive rendering
+  const isMobile = typeof window !== 'undefined' && (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.matchMedia('(max-width: 768px)').matches
+  );
+
   // Pre-fetch data when networks are loaded
   useEffect(() => {
     let mounted = true;
@@ -1771,7 +1777,7 @@ export default function App() {
     <div className="app-container">
       <SearchBar onSearch={handleSearch} onSearchDapp={handleSearchDapp} />
       <Canvas
-        dpr={[1, 1.5]}
+        dpr={isMobile ? [1, 1] : [1, 1.5]}
         camera={{ position: [0, 0, 6], near: 0.1, far: 30, fov: 60 }}
         gl={{
           powerPreference: "high-performance",
@@ -1779,7 +1785,7 @@ export default function App() {
           stencil: false,
           alpha: false,
         }}
-        shadows
+        shadows={!isMobile}
         style={{ position: 'absolute', inset: 0 }}
       >
         <Scene
