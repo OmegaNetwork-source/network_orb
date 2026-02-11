@@ -67,11 +67,16 @@ export const heroVertexShader = `
         
         float attenuationStrength = 2.0;
 
-        float displacement = 1.0 - clamp(1.0 / (attenuationStrength * distanceToSphere1 * distanceToSphere1), 0.0, 1.0);
-        displacement = min(displacement, 1.0 - clamp(1.0 / (attenuationStrength * distanceToSphere2 * distanceToSphere2), 0.0, 1.0));
-        displacement = min(displacement, 1.0 - clamp(1.0 / (attenuationStrength * distanceToSphere3 * distanceToSphere3), 0.0, 1.0));
-        displacement = min(displacement, 1.0 - clamp(1.0 / (attenuationStrength * distanceToSphere4 * distanceToSphere4), 0.0, 1.0));
-        
+        // Spheres 1 & 3 push spikes outward (protrusions)
+        float outward1 = clamp(1.0 / (attenuationStrength * distanceToSphere1 * distanceToSphere1), 0.0, 1.0);
+        float outward3 = clamp(1.0 / (attenuationStrength * distanceToSphere3 * distanceToSphere3), 0.0, 1.0);
+        float outInfluence = max(outward1, outward3);
+
+        // Spheres 2 & 4 push spikes inward (indentations)
+        float inward2 = clamp(1.0 / (attenuationStrength * distanceToSphere2 * distanceToSphere2), 0.0, 1.0);
+        float inward4 = clamp(1.0 / (attenuationStrength * distanceToSphere4 * distanceToSphere4), 0.0, 1.0);
+        float inInfluence = max(inward2, inward4);
+
         float tip = 1.0 - step(-2.5, pos.y);
         if (tip > 0.5) {
             pos.y = -2.5;
@@ -81,7 +86,7 @@ export const heroVertexShader = `
         pos = rotateByQuaternion(pos, a_instanceQuaternions);
         pos *= u_scale;
         pos += a_instancePos;
-        pos += normalize(a_instancePos) * 0.6 * pow(displacement, 0.5);
+        pos += normalize(a_instancePos) * (0.4 + 0.5 * pow(outInfluence, 0.6) - 0.35 * pow(inInfluence, 0.6));
         
         norm = rotateByQuaternion(norm, a_instanceQuaternions);
 
@@ -129,6 +134,8 @@ export const heroFragmentShader = `
     uniform vec2 u_noiseCoordOffset;
     uniform vec3 u_color;
     uniform vec3 u_hotColor;
+    uniform vec3 u_flashColor;
+    uniform float u_flashIntensity;
 
     uniform sampler2D directionalShadowMap[ 1 ];
     varying vec4 vDirectionalShadowCoord[ 1 ];

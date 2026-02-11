@@ -588,7 +588,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
     const dappModeRef = useRef(false);
     const flashesRef = useRef([]);
     const networkMapRef = useRef(null);
-    const lastFlashTimeRef = useRef(2);
+    const lastFlashTimeRef = useRef(0.5);
+    const flashNetworkIndexRef = useRef(0);
 
     const [sphereGeometry, setSphereGeometry] = useState(null);
     const [sphereMaterial, setSphereMaterial] = useState(null);
@@ -614,6 +615,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         u_hotContinentPos: { value: BASE_NETWORKS[0].pos.clone() },
         u_hotColor: { value: BASE_NETWORKS[0].color.clone() },
         u_hotBeamIntensity: { value: 1.0 },
+        u_flashColor: { value: new THREE.Color(0, 0, 0) },
+        u_flashIntensity: { value: 0.0 },
         ...THREE.UniformsUtils.merge([THREE.UniformsLib.lights]),
     })))[0]
 
@@ -650,19 +653,24 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
         const tempQuat = new THREE.Quaternion();
 
         for (let i = 0, i3 = 0, i4 = 0; i < INSTANCES_COUNT; i++, i3 += 3, i4 += 4) {
-            const y = 1 - (i / (INSTANCES_COUNT - 1)) * 2;
-            const radius = Math.sqrt(1 - y * y);
+            // Fibonacci distribution on unit sphere
+            const ny = 1 - (i / (INSTANCES_COUNT - 1)) * 2;
+            const r = Math.sqrt(1 - ny * ny);
             const theta = goldenAngle * i;
+            const nx = Math.cos(theta) * r;
+            const nz = Math.sin(theta) * r;
 
-            const x = Math.cos(theta) * radius * sphereRadius;
-            const z = Math.sin(theta) * radius * sphereRadius;
-            const posY = y * sphereRadius;
+            // Simple sphere - no deformation
+            const x = nx * sphereRadius;
+            const y = ny * sphereRadius;
+            const z = nz * sphereRadius;
 
             positionsArray[i3] = x;
-            positionsArray[i3 + 1] = posY;
+            positionsArray[i3 + 1] = y;
             positionsArray[i3 + 2] = z;
 
-            tempPos.set(-x, -posY, -z).normalize();
+            // Outward direction for spike orientation
+            tempPos.set(-x, -y, -z).normalize();
             tempQuat.setFromUnitVectors(up, tempPos);
 
             quaternionsArray[i4] = tempQuat.x;
@@ -670,8 +678,8 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
             quaternionsArray[i4 + 2] = tempQuat.z;
             quaternionsArray[i4 + 3] = tempQuat.w;
 
-            // Track closest network for flash effects
-            const instanceVec = new THREE.Vector3(x, posY, z).normalize();
+            // Track closest network using angular position on unit sphere
+            const instanceVec = new THREE.Vector3(nx, ny, nz);
             let closestNetworkIdx = 0;
             let maxDot = -1;
             for (let n = 0; n < networksForGeometry.length; n++) {
@@ -911,30 +919,9 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                         return;
                     }
                 }
-            } else {
-                // Network mode hover
-                let closest = null;
-                let maxDot = -Infinity;
-                for (const net of networks) {
-                    const d = pos.dot(net.pos);
-                    if (d > maxDot) {
-                        maxDot = d;
-                        closest = net;
-                    }
-                }
-                if (closest && maxDot > 0.7) {
-                    onHover({
-                        name: closest.name,
-                        type: 'Network',
-                        color: closest.color.getStyle(),
-                        screenX: event.nativeEvent?.clientX || 0,
-                        screenY: event.nativeEvent?.clientY || 0,
-                    });
-                    return;
-                }
             }
 
-            // Nothing hovered
+            // Nothing hovered (network hover disabled)
             onHover(null);
         }
     }
@@ -986,21 +973,29 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                 }
             }
 
-            // Flash scheduling (only when not in dApp mode)
-            if (!dappModeRef.current && networkMapRef.current && networks.length > 0) {
+            // Flash scheduling - cycle through ALL networks (only when not in dApp mode)
+            // Localized flashes: each network flashes only its region
+            if (!dappModeRef.current && networks.length > 0) {
                 if (time > lastFlashTimeRef.current) {
-                    const netIdx = Math.floor(Math.random() * networks.length);
+                    // Cycle sequentially through networks so every color is seen
+                    const netIdx = flashNetworkIndexRef.current % networks.length;
+                    flashNetworkIndexRef.current = netIdx + 1;
                     flashesRef.current.push({
                         networkIdx: netIdx,
                         startTime: time,
-                        duration: 1.8,
+                        duration: 0.4, // Shorter duration
                         color: networks[netIdx].color,
                     });
-                    lastFlashTimeRef.current = time + 3 + Math.random() * 3;
+                    // Less frequent flashes: 0.8-1.5 seconds between flashes
+                    lastFlashTimeRef.current = time + 0.8 + Math.random() * 0.7;
                 }
                 flashesRef.current = flashesRef.current.filter(f => time - f.startTime < f.duration);
+                
+                // Disable global shader flash - we'll use localized attribute-based flashes only
+                uniforms.u_flashIntensity.value = 0.0;
             } else {
                 flashesRef.current = [];
+                uniforms.u_flashIntensity.value = 0.0;
             }
 
             // Apply flash overlays to attribute buffer
@@ -1016,21 +1011,21 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                         const elapsed = time - flash.startTime;
                         const progress = elapsed / flash.duration;
                         let intensity;
-                        if (progress < 0.15) intensity = progress / 0.15;
-                        else if (progress < 0.4) intensity = 1.0;
-                        else intensity = 1.0 - (progress - 0.4) / 0.6;
-                        intensity = Math.max(0, intensity) * 0.35;
+                        // Lightning: instant strike, brief peak, rapid decay
+                        if (progress < 0.05) intensity = progress / 0.05;
+                        else if (progress < 0.12) intensity = 1.0;
+                        else intensity = Math.pow(1.0 - (progress - 0.12) / 0.88, 2.0);
+                        intensity = Math.max(0, intensity) * 0.5; // Reduced intensity
 
                         const cr = flash.color.r * intensity;
                         const cg = flash.color.g * intensity;
                         const cb = flash.color.b * intensity;
 
+                        // Flash the entire orb with the network's color
                         for (let i = 0, i3 = 0; i < INSTANCES_COUNT; i++, i3 += 3) {
-                            if (nMap[i] === flash.networkIdx) {
-                                attr[i3] = Math.min(1.0, attr[i3] + cr);
-                                attr[i3 + 1] = Math.min(1.0, attr[i3 + 1] + cg);
-                                attr[i3 + 2] = Math.min(1.0, attr[i3 + 2] + cb);
-                            }
+                            attr[i3] = Math.min(1.0, attr[i3] + cr);
+                            attr[i3 + 1] = Math.min(1.0, attr[i3 + 1] + cg);
+                            attr[i3 + 2] = Math.min(1.0, attr[i3 + 2] + cb);
                         }
                     }
                 } else {
@@ -1087,7 +1082,7 @@ function Hero({ onSelect, selectedNetwork, dappNodes, onSelectDapp, selectedDapp
                     if (onHover) onHover(null);
                 }}
             >
-                <sphereGeometry args={[2.15, 48, 48]} />
+                <sphereGeometry args={[3.2, 48, 48]} />
                 <meshBasicMaterial
                     transparent
                     opacity={0}
